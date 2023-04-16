@@ -1,40 +1,64 @@
 import socket
+import threading
+from cryptography.fernet import Fernet
 
-# create a socket object
+# Prompt the user to enter their MAC address
+mac_address = input("Enter your MAC address: ")
+
+# Generate a key for encryption
+key = Fernet.generate_key()
+cipher_suite = Fernet(key)
+
+# Create a socket object
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-# get the local machine name
-host = socket.gethostname()
-# set the port number to match the switch
-port = 12346
+# Connect to the server
+client_socket.connect(('192.168.1.42', 5000))
 
-# connect to the switch
-client_socket.connect((host, port))
+# Send the MAC address to the server
+client_socket.send(mac_address.encode())
 
-# send the MAC address to the switch
-mac_address = input('Enter MAC address: ')
-client_socket.send(mac_address.encode('ascii'))
+# Receive the encryption key from the server
+key = client_socket.recv(1024)
+cipher_suite = Fernet(key)
 
-# wait for the switch to acknowledge the MAC address
-ack = client_socket.recv(1024).decode('ascii')
-print(ack)
-if ack != 'ACK':
-    print('Error: Switch did not acknowledge MAC address')
-    client_socket.close()
-    exit()
-# enter a loop to send messages
-while True:
-    # get the destination MAC address and message from the user
-    dest_mac = input('Enter destination MAC address (or "all" to send to all clients): ')
-    message = input('Enter message: ')
-    msg="mac"
-    # send the message to the switch
-    send_message = f'{msg}:{dest_mac}:{message}'
-    client_socket.send(send_message.encode('ascii'))
-    
-    print("sucessfully sent to switch")
-    # wait for a response from the switch
-    response = client_socket.recv(1024).decode('ascii')
-    
-    # print the response from the switch
-    print(response)
+def receive():
+    global cipher_suite
+
+    while True:
+        # Receive data from the server
+        data = client_socket.recv(1024)
+
+        # Decrypt the data
+        decrypted_data = cipher_suite.decrypt(data)
+
+        if not data:
+            # Close the socket if the server has disconnected
+            client_socket.close()
+            break
+        else:
+            # Print the decrypted data
+            print(decrypted_data.decode())
+
+def send():
+    global cipher_suite
+try:
+    while True:
+        # Prompt the user to enter a message
+        message = input("")
+
+        # Encrypt the message and append the recipient's MAC address
+        recipient_mac_address = input("Enter the recipient's MAC address: ")
+        encrypted_message = cipher_suite.encrypt(f"{recipient_mac_address}:{message}".encode())
+
+        # Send the encrypted message to the server
+        client_socket.send(encrypted_message)
+except EOFError:
+        print("User disconnected or won't exist")
+except KeyboardInterrupt:
+        print("Program interrupted by user. Exiting...")
+receive_thread = threading.Thread(target=receive)
+send_thread = threading.Thread(target=send)
+
+receive_thread.start()
+send_thread.start()
