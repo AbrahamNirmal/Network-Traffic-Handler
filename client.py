@@ -1,35 +1,40 @@
 import socket
-import threading
 
-# Define a host and port for the server
-HOST = '127.0.0.1'
-PORT = 55555
+# create a socket object
+client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-# Create a socket object
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+# get the local machine name
+host = socket.gethostname()
+# set the port number to match the switch
+port = 12346
 
-# Connect to the server
-client.connect((HOST, PORT))
+# connect to the switch
+client_socket.connect((host, port))
 
-# A function to continuously receive messages from the server
-def receive_messages():
-    while True:
-        try:
-            # Receive the server's message
-            message = client.recv(1024).decode('utf-8')
-            # Print the message
-            print(message)
-        except:
-            # If an error occurs, close the connection
-            client.close()
-            break
+# send the MAC address to the switch
+mac_address = input('Enter MAC address: ')
+client_socket.send(mac_address.encode('ascii'))
 
-# Start a new thread to continuously receive messages from the server
-receive_thread = threading.Thread(target=receive_messages)
-receive_thread.start()
-
-# A loop to continuously send messages to the server
+# wait for the switch to acknowledge the MAC address
+ack = client_socket.recv(1024).decode('ascii')
+print(ack)
+if ack != 'ACK':
+    print('Error: Switch did not acknowledge MAC address')
+    client_socket.close()
+    exit()
+# enter a loop to send messages
 while True:
-    message = input('')
-    # Send the message to the server
-    client.send(message.encode('utf-8'))
+    # get the destination MAC address and message from the user
+    dest_mac = input('Enter destination MAC address (or "all" to send to all clients): ')
+    message = input('Enter message: ')
+    msg="mac"
+    # send the message to the switch
+    send_message = f'{msg}:{dest_mac}:{message}'
+    client_socket.send(send_message.encode('ascii'))
+    
+    print("sucessfully sent to switch")
+    # wait for a response from the switch
+    response = client_socket.recv(1024).decode('ascii')
+    
+    # print the response from the switch
+    print(response)
